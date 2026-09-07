@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: travel_copilot_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=AI Travel Copilot
+      - APP_ENV=production
+      - DEBUG=false
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/travel_copilot_db
+      - SYNC_DATABASE_URL=postgresql://postgres:postgres@db:5432/travel_copilot_db
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_ENABLED=true
+      - SECRET_KEY=supersecretjwtkeychangeinproductionmustbe64byteslengthforsecurity12345
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      - travel_network
+
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: travel_copilot_pgvector
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: travel_copilot_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - travel_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: travel_copilot_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - travel_network
+
+volumes:
+  pgdata:
+
+networks:
+  travel_network:
+    driver: bridge
